@@ -597,14 +597,78 @@ function openEventViewDialog(event) {
   reportBtn.hidden = !event.extendedProps.writable;
   reportBtn.disabled = false;
 
+  // Show Last Order: visible only when we can extract the right identifiers
+  // from the description for the routing decision (location → court site).
+  const showLastBtn = dlg.querySelector(".btn-show-last-order");
+  const target = getShowLastOrderTarget(event);
+  showLastBtn._target = target;
+  showLastBtn.hidden = !target;
+  showLastBtn.disabled = false;
+
   dlg._currentEvent = event;
   dlg.showModal();
+}
+
+// Decide which court-status page to open and which identifier to put on the
+// clipboard. Returns null when there's nothing actionable.
+//   location contains "SCI" → Supreme Court page, copy line 4 (case details)
+//   location contains "DHC" → Delhi High Court page, copy line 4
+//   otherwise → eCourts CNR search page, copy CNR from line 5
+function getShowLastOrderTarget(event) {
+  const raw = event.extendedProps.raw;
+  const description = raw.description || "";
+  const location = (raw.location || "").toUpperCase();
+  const lines = description.split(/\r?\n/);
+  const line4 = (lines[3] || "").trim();
+  const line5 = (lines[4] || "").trim();
+
+  if (location.includes("SCI")) {
+    if (!line4) return null;
+    return {
+      url: "https://www.sci.gov.in/case-status-case-no/",
+      copyValue: line4,
+      message:
+        'Case details copied: "' + line4 + '". Paste into the form on the page that just opened.',
+    };
+  }
+  if (location.includes("DHC")) {
+    if (!line4) return null;
+    return {
+      url: "https://delhihighcourt.nic.in/app/get-case-type-status",
+      copyValue: line4,
+      message:
+        'Case details copied: "' + line4 + '". Paste into the form on the page that just opened.',
+    };
+  }
+  const cnrMatch = line5.match(/^CNR:\s*([A-Z0-9]{16})\b/i);
+  if (cnrMatch) {
+    const cnr = cnrMatch[1].toUpperCase();
+    return {
+      url: "https://services.ecourts.gov.in/ecourtindia_v6/",
+      copyValue: cnr,
+      message:
+        "CNR copied: " + cnr + ". Paste into the CNR field on eCourts.",
+    };
+  }
+  return null;
 }
 
 function wireEventViewDialog() {
   const dlg = document.getElementById("event-view-dialog");
   dlg.querySelector(".btn-cancel").addEventListener("click", () => dlg.close());
   dlg.querySelector(".btn-close").addEventListener("click", () => dlg.close());
+  dlg.querySelector(".btn-show-last-order").addEventListener("click", async () => {
+    const btn = dlg.querySelector(".btn-show-last-order");
+    const target = btn._target;
+    if (!target) return;
+    try {
+      await navigator.clipboard.writeText(target.copyValue);
+      showToast(target.message);
+    } catch {
+      showToast("Could not copy automatically. Copy manually: " + target.copyValue);
+    }
+    window.open(target.url, "_blank", "noopener,noreferrer");
+  });
   dlg.querySelector(".btn-report-error").addEventListener("click", () => {
     const event = dlg._currentEvent;
     if (!event) return;

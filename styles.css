@@ -350,6 +350,18 @@ dialog textarea { resize: vertical; }
   word-break: break-all;
 }
 .ev-view-description a:hover { color: #3730a3; }
+.btn-show-last-order {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #c7d2fe;
+  background: white;
+  color: #4338ca;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.btn-show-last-order:hover { background: #eef2ff; }
+.btn-show-last-order:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .btn-report-error {
   margin-right: auto;
   padding: 0.5rem 1rem;
