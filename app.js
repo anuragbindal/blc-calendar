@@ -1006,7 +1006,11 @@ function wireDateUpdateDialog() {
       showToast("Saved");
     } catch (err) {
       console.error(err);
-      errBox.textContent = "Save failed: " + apiErrorMessage(err);
+      if (err && err.rollbackFailed) {
+        errBox.textContent = err.message;
+      } else {
+        errBox.textContent = "Save failed: " + apiErrorMessage(err);
+      }
       errBox.hidden = false;
       form.querySelector(".btn-save").disabled = false;
     }
@@ -1059,17 +1063,38 @@ async function saveDateUpdate(event, choice) {
     );
     return { duplicate: insertResp.result, calendarId };
   } catch (err) {
-    // Roll back the ND change on the original to keep the data consistent.
-    try {
-      await call(() =>
-        gapi.client.calendar.events.patch({
-          calendarId,
-          eventId: event.id,
-          resource: { description: originalDesc },
-        })
+    // Insert failed. Retry the rollback a few times before giving up — a
+    // transient failure here would otherwise leave the original event with an
+    // ND pointing at a duplicate that doesn't exist.
+    let rollbackErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await call(() =>
+          gapi.client.calendar.events.patch({
+            calendarId,
+            eventId: event.id,
+            resource: { description: originalDesc },
+          })
+        );
+        rollbackErr = null;
+        break;
+      } catch (e) {
+        rollbackErr = e;
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        }
+      }
+    }
+    if (rollbackErr) {
+      console.error("rollback failed after retries:", rollbackErr);
+      const eventLabel = raw.summary || event.id;
+      const wrapped = new Error(
+        `Save failed and the rollback also failed. The original event "${eventLabel}" may now have an incorrect "next date" entry without a matching duplicate. Please open the event and verify its description manually. (Insert error: ${apiErrorMessage(err)}. Rollback error: ${apiErrorMessage(rollbackErr)}.)`
       );
-    } catch (rollbackErr) {
-      console.error("rollback failed:", rollbackErr);
+      wrapped.rollbackFailed = true;
+      wrapped.originalError = err;
+      wrapped.rollbackError = rollbackErr;
+      throw wrapped;
     }
     throw err;
   }
