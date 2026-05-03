@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bindals Court Calendar</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+</head>
+<body>
+  <div id="login" class="login-screen">
+    <div class="login-card">
+      <h1>Bindals Court Calendar</h1>
+      <p class="lead">Multi-view Google Calendar in one place. Day, 3-day, month, and agenda views. Every edit is pushed straight to Google.</p>
+      <button id="signin-btn" disabled>Sign in with Google</button>
+      <p class="muted">Nothing is stored in this app. All reads and writes go through the Google Calendar API.</p>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <header class="topbar">
+      <div class="brand">Bindals Court Calendar</div>
+      <div class="toolbar">
+        <button id="btn-today" type="button">Today</button>
+        <button id="btn-refresh" type="button" title="Reload events from Google Calendar">Refresh</button>
+        <button id="btn-prev" type="button" aria-label="Previous">&lsaquo;</button>
+        <button id="btn-next" type="button" aria-label="Next">&rsaquo;</button>
+        <span id="cal-title" class="cal-title"></span>
+      </div>
+      <div class="view-switcher" role="tablist">
+        <button type="button" data-view="timeGridDay">Day</button>
+        <button type="button" data-view="dayGridMonth">Month</button>
+        <button type="button" data-view="listWeek" class="active">Agenda</button>
+      </div>
+      <div class="user">
+        <span id="user-email" class="muted"></span>
+        <button id="signout-btn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <label class="toggle">
+            <input type="checkbox" id="date-update-toggle">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Date update mode</span>
+          </label>
+          <p class="toggle-hint" id="mode-hint">Read only and error reporting mode. Switch ON to update dates.</p>
+        </div>
+        <h3>Calendars</h3>
+        <div id="calendar-toggles"></div>
+      </aside>
+      <section id="calendar"></section>
+    </main>
+  </div>
+
+  <dialog id="event-view-dialog">
+    <div class="ev-view-header">
+      <h2 class="ev-view-title"></h2>
+      <button type="button" class="btn-close" aria-label="Close">&times;</button>
+    </div>
+    <dl class="ev-view-fields">
+      <div class="ev-view-row"><dt>Date</dt><dd class="ev-view-when"></dd></div>
+      <div class="ev-view-row" data-field="location" hidden><dt>Court</dt><dd class="ev-view-location"></dd></div>
+      <div class="ev-view-row ev-view-row-spaced" data-field="description" hidden><dt>More Details</dt><dd class="ev-view-description"></dd></div>
+    </dl>
+    <div class="dialog-actions">
+      <button type="button" class="btn-report-error" hidden>Report error in updating</button>
+      <button type="button" class="btn-cancel">Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="date-update-dialog">
+    <form method="dialog">
+      <h2>Update next date</h2>
+      <div class="event-info">
+        <div class="ev-title"></div>
+        <div class="ev-meta">
+          <span class="ev-date"></span>
+          <span class="ev-location"></span>
+        </div>
+      </div>
+      <label class="next-date-row">Next date
+        <input type="date" name="nextDate" required>
+      </label>
+      <label class="row">
+        <input type="checkbox" name="noNextDate">
+        <span>No next date is to be added</span>
+      </label>
+      <label class="na-reason" hidden>Reason (optional)
+        <input type="text" name="naReason" autocomplete="off" placeholder="e.g., case dismissed">
+      </label>
+      <div class="dialog-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-cancel">Cancel</button>
+        <button type="submit" class="btn-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="report-error-dialog">
+    <form method="dialog">
+      <h2>Report error</h2>
+      <p class="report-prompt">Provide the correct next date of this case.</p>
+      <label>Correct next date
+        <input type="date" name="correctDate" required>
+      </label>
+      <div class="dialog-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-cancel">Cancel</button>
+        <button type="submit" class="btn-save">Report</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="info-dialog">
+    <h2 class="info-title"></h2>
+    <p class="info-message"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn-close">OK</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</body>
+</html>
