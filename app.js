@@ -142,7 +142,7 @@ function gisLoaded() {
       showLoginError(
         "Sign-in did not complete: " +
           (err && (err.message || err.type)) +
-          ". See the debug panel below for details."
+          "."
       );
     },
   });
