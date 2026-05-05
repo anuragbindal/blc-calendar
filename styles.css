@@ -55,7 +55,7 @@ button { font-family: inherit; }
   border-bottom: 1px solid #e5e7eb;
   flex-wrap: wrap;
 }
-.brand { font-weight: 600; }
+.brand { font-weight: 600; line-height: 1.15; }
 .toolbar { display: flex; align-items: center; gap: 0.25rem; }
 .toolbar button,
 .view-switcher button,
