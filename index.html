@@ -26,17 +26,30 @@
         <button id="btn-prev" type="button" aria-label="Previous">&lsaquo;</button>
         <button id="btn-next" type="button" aria-label="Next">&rsaquo;</button>
         <span id="cal-title" class="cal-title"></span>
+        <div class="search-box" role="search">
+          <input type="search" id="event-search" placeholder="Search title / court…" autocomplete="off" spellcheck="false">
+          <button type="button" id="event-search-clear" aria-label="Clear search" title="Clear search" hidden>×</button>
+          <span id="event-search-count" class="muted" hidden></span>
+        </div>
       </div>
       <div class="view-switcher" role="tablist">
         <button type="button" data-view="timeGridDay">Day</button>
         <button type="button" data-view="dayGridMonth">Month</button>
-        <button type="button" data-view="listWeek" class="active">Agenda</button>
+        <button type="button" data-view="agenda" class="active">Agenda</button>
       </div>
       <div class="user">
         <span id="user-email" class="muted"></span>
         <button id="signout-btn" type="button">Sign out</button>
       </div>
     </header>
+
+    <div id="search-results" class="search-results" hidden>
+      <div class="search-results-head">
+        <span id="search-results-summary"></span>
+        <button type="button" id="search-results-close" aria-label="Close results" title="Back to calendar">×</button>
+      </div>
+      <div id="search-results-list"></div>
+    </div>
 
     <main class="layout">
       <aside class="sidebar">
@@ -82,6 +95,8 @@
         <div class="ev-meta">
           <span class="ev-date"></span>
           <span class="ev-location"></span>
+          <span class="ev-caseno"></span>
+          <span class="ev-cnr"></span>
         </div>
       </div>
       <label class="next-date-row">Next date
@@ -92,8 +107,27 @@
         <span>No next date is to be added</span>
       </label>
       <label class="na-reason" hidden>Reason (optional)
-        <input type="text" name="naReason" autocomplete="off" placeholder="e.g., case dismissed">
+        <input type="text" name="naReason" autocomplete="off" placeholder="e.g., Decreed, Settled, Dismissed, Discharged, etc.">
       </label>
+      <label class="row">
+        <input type="checkbox" name="stageTodo">
+        <span>Stage / Add Task / To-Do</span>
+      </label>
+      <label class="listed-for" hidden>Listed for
+        <input type="text" name="listedFor" autocomplete="off" placeholder="e.g., Arguments, Cross-examination, Final hearing">
+      </label>
+      <label class="row" id="add-task-row">
+        <input type="checkbox" name="addTask">
+        <span>Add a Task</span>
+      </label>
+      <div class="task-fields" hidden>
+        <label>Task title
+          <input type="text" name="taskTitle" autocomplete="off">
+        </label>
+        <label>Task deadline
+          <input type="date" name="taskDeadline">
+        </label>
+      </div>
       <div class="dialog-error" hidden></div>
       <div class="dialog-actions">
         <button type="button" class="btn-cancel">Cancel</button>

@@ -37,7 +37,12 @@ const DEFAULT_CALENDAR_NAMES = [
   "NHAI Diary Faridkot",
 ];
 
+const $ = (id) => document.getElementById(id);
+
 let dateUpdateMode = readDateUpdateMode();
+let searchQuery = '';
+let searchSeq = 0;
+let searchAbortCtrl = null;
 
 function readDateUpdateMode() {
   try {
@@ -431,7 +436,7 @@ function renderCalendarToggles() {
 function initCalendar() {
   const el = document.getElementById("calendar");
   calendar = new FullCalendar.Calendar(el, {
-    initialView: "listWeek",
+    initialView: 'agenda',
     headerToolbar: false,
     nowIndicator: true,
     editable: false,
@@ -442,7 +447,25 @@ function initCalendar() {
     dayMaxEvents: true,
     timeZone: "local",
     views: {
-      listWeek: { buttonText: "Agenda" },
+      agenda: {
+        type: 'list',
+        duration: { days: 7 },
+        buttonText: 'Agenda',
+      },
+    },
+    listDayFormat:     { month: 'long', day: 'numeric', year: 'numeric' },
+    listDaySideFormat: { weekday: 'long' },
+    displayEventEnd: false,
+    noEventsContent: () => {
+      if (dateUpdateMode) {
+        return { html:
+          '<div style="padding:1rem; line-height:1.55; max-width:640px; margin:0 auto; color:#374151">' +
+          '<div style="font-weight:600; color:#111827; margin-bottom:0.35rem">All dates are updated for today.</div>' +
+          '<div style="font-size:0.9rem; color:#4b5563">Select a different range of dates, or turn the Date Update mode off to see the full calendar (or to report an incorrectly updated date).</div>' +
+          '</div>'
+        };
+      }
+      return { html: '<div style="padding:1rem; color:#6b7280">No events to display</div>' };
     },
     events: fetchEvents,
     eventClick: (info) => {
@@ -476,6 +499,218 @@ function bindToolbar() {
         .forEach((b) => b.classList.toggle("active", b === btn));
     };
   });
+  bindEventSearch();
+}
+
+function bindEventSearch() {
+  const input = $('event-search');
+  const clearBtn = $('event-search-clear');
+  const closeBtn = $('search-results-close');
+  if (!input) return;
+
+  let t;
+  const onChange = () => {
+    const next = input.value.trim();
+    clearBtn.hidden = !next;
+    clearTimeout(t);
+    t = setTimeout(() => runSearch(next), 250);
+  };
+  input.addEventListener('input', onChange);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && input.value) {
+      input.value = '';
+      clearBtn.hidden = true;
+      clearTimeout(t);
+      runSearch('');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(t);
+      runSearch(input.value.trim());
+    }
+  });
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    clearBtn.hidden = true;
+    runSearch('');
+    input.focus();
+  });
+  closeBtn.addEventListener('click', () => {
+    input.value = '';
+    clearBtn.hidden = true;
+    runSearch('');
+  });
+}
+
+function showSearchPanel(show) {
+  const panel = $('search-results');
+  const layout = document.querySelector('main.layout');
+  if (!panel || !layout) return;
+  panel.hidden = !show;
+  layout.style.display = show ? 'none' : '';
+}
+
+async function runSearch(qRaw) {
+  const q = (qRaw || '').trim();
+  searchQuery = q;
+  const list = $('search-results-list');
+  const summary = $('search-results-summary');
+  const countLbl = $('event-search-count');
+  countLbl.hidden = true;
+  countLbl.textContent = '';
+
+  if (!q) {
+    showSearchPanel(false);
+    if (searchAbortCtrl) { searchAbortCtrl.abort(); searchAbortCtrl = null; }
+    return;
+  }
+
+  showSearchPanel(true);
+  summary.textContent = `Searching for "${q}"…`;
+  list.innerHTML = '<div class="loading">Searching all calendars…</div>';
+
+  if (searchAbortCtrl) searchAbortCtrl.abort();
+  searchAbortCtrl = new AbortController();
+  const seq = ++searchSeq;
+
+  try {
+    const ids = [...visibleCalendarIds];
+    const results = await Promise.all(
+      ids.map((calId) =>
+        call(() =>
+          gapi.client.calendar.events.list({
+            calendarId: calId,
+            q,
+            singleEvents: true,
+            orderBy: 'startTime',
+            maxResults: 250,
+            showDeleted: false,
+          })
+        ).then((r) => {
+          const meta = calendarsList.find((c) => c.id === calId);
+          return (r.result.items || []).map((ev) => ({
+            id: ev.id,
+            calendarId: calId,
+            calendarName: meta?.summary || calId,
+            backgroundColor: meta?.backgroundColor,
+            summary: ev.summary || '',
+            location: ev.location || '',
+            start: ev.start.dateTime || ev.start.date,
+            allDay: !ev.start.dateTime,
+          }));
+        })
+      )
+    );
+    if (seq !== searchSeq) return;
+
+    const items = results.flat().sort((a, b) => {
+      if (!a.start) return 1;
+      if (!b.start) return -1;
+      return a.start.localeCompare(b.start);
+    });
+
+    const truncated = items.length > 100;
+    renderSearchResults(q, {
+      items: items.slice(0, 100),
+      total: items.length,
+      truncated,
+    });
+  } catch (e) {
+    if (seq !== searchSeq) return;
+    list.innerHTML = `<div class="err">Search failed: ${escapeHtml(e.message || '')}</div>`;
+    summary.textContent = 'Search failed';
+  }
+}
+
+function renderSearchResults(q, data) {
+  const summary = $('search-results-summary');
+  const list = $('search-results-list');
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  if (!items.length) {
+    summary.textContent = `No matches for "${q}"`;
+    list.innerHTML = '<div class="empty">Try a partial word, the petitioner&rsquo;s surname, or a different spelling.</div>';
+    return;
+  }
+  const total = data.total ?? items.length;
+  summary.textContent = total === 1
+    ? `1 match for "${q}"`
+    : `${items.length}${data.truncated ? '+' : ''} of ${total} matches for "${q}"`;
+
+  const colorById = new Map((calendarsList || []).map((c) => [c.id, c.backgroundColor || '#9ca3af']));
+
+  const frag = document.createDocumentFragment();
+  for (const it of items) {
+    const row = document.createElement('div');
+    row.className = 'search-row';
+    const startDate = it.start ? new Date(it.start) : null;
+    const when = document.createElement('div');
+    when.className = 'when';
+    if (startDate && !Number.isNaN(startDate.getTime())) {
+      const dd = String(startDate.getDate()).padStart(2, '0');
+      const mon = startDate.toLocaleString(undefined, { month: 'short' });
+      const yr = startDate.getFullYear();
+      const wd = startDate.toLocaleString(undefined, { weekday: 'short' });
+      when.innerHTML = `${dd} ${mon} ${yr}<span class="weekday">${wd}${it.allDay ? '' : ' · ' + startDate.toLocaleString(undefined, {hour:'2-digit', minute:'2-digit'})}</span>`;
+    } else {
+      when.textContent = '—';
+    }
+    const what = document.createElement('div');
+    what.className = 'what';
+    const title = it.summary || '(no title)';
+    what.innerHTML = `<div>${highlight(title, q)}</div>` +
+      (it.location ? `<div class="where">${highlight(it.location, q)}</div>` : '');
+    const pill = document.createElement('div');
+    pill.className = 'cal-pill';
+    pill.innerHTML = `<span class="dot" style="background:${escapeAttr(colorById.get(it.calendarId) || it.backgroundColor || '#9ca3af')}"></span>${escapeHtml(it.calendarName || '')}`;
+    row.append(when, what, pill);
+    row.addEventListener('click', () => openSearchHit(it));
+    frag.append(row);
+  }
+  list.innerHTML = '';
+  list.append(frag);
+  if (data.truncated) {
+    const note = document.createElement('div');
+    note.className = 'truncated';
+    note.textContent = 'Showing the first 100 hits. Refine your search to narrow further.';
+    list.append(note);
+  }
+}
+
+function openSearchHit(item) {
+  if (!item.start) return;
+  const d = new Date(item.start);
+  if (Number.isNaN(d.getTime())) return;
+  const input = $('event-search');
+  if (input) input.value = '';
+  $('event-search-clear').hidden = true;
+  searchQuery = '';
+  showSearchPanel(false);
+  if (calendar) {
+    calendar.gotoDate(d);
+    calendar.refetchEvents();
+    setTimeout(() => {
+      const evs = calendar.getEvents();
+      const hit = evs.find((e) => e.id === item.id && e.extendedProps?.calendarId === item.calendarId);
+      if (!hit) return;
+      if (dateUpdateMode) handleDateUpdateClick(hit);
+      else openEventViewDialog(hit);
+    }, 250);
+  }
+}
+
+function highlight(text, q) {
+  if (!q) return escapeHtml(text);
+  const lower = (text || '').toLowerCase();
+  const ql = q.toLowerCase();
+  const i = lower.indexOf(ql);
+  if (i < 0) return escapeHtml(text);
+  return escapeHtml(text.slice(0, i)) +
+    '<mark>' + escapeHtml(text.slice(i, i + q.length)) + '</mark>' +
+    escapeHtml(text.slice(i + q.length));
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/"/g, '&quot;');
 }
 
 async function refreshCalendar() {
@@ -501,7 +736,10 @@ async function refreshCalendar() {
 
 function updateTitle() {
   if (!calendar) return;
-  document.getElementById("cal-title").textContent = calendar.view.title;
+  const el = document.getElementById("cal-title");
+  const t = calendar.view.title;
+  el.textContent = t;
+  el.title = t;
 }
 
 async function fetchEvents(info, success, failure) {
@@ -539,6 +777,8 @@ async function fetchEvents(info, success, failure) {
         //   - hide events whose ND already has a date or "NA"
         //   - show only events with empty ND
         if (dateUpdateMode) {
+          const startStr = ev.start.dateTime || ev.start.date;
+          if (startStr && isDateAfterToday(startStr)) return;
           const title = ev.summary || "";
           if (!title.startsWith("Correct Date")) {
             const parsed = parseCourtFormat(ev.description);
@@ -845,6 +1085,18 @@ function parseCourtFormat(description) {
   return { pd: pdMatch[1], ndState, ndRaw, lines };
 }
 
+// Splice ["", "For: <text>"] right after the CNR line (line 5). Existing
+// descriptions always have a blank line after CNR, so we don't add a
+// trailing blank — the original one separates "For:" from what follows.
+function insertListedFor(description, text) {
+  if (!text) return description;
+  const lines = String(description || "").split(/\r?\n/);
+  while (lines.length < 5) lines.push("");
+  const before = lines.slice(0, 5);
+  const after = lines.slice(5);
+  return [...before, "", `For: ${text}`, ...after].join("\n");
+}
+
 // Replace line 2 with a new "ND:" payload. If `payload` is empty, line 2
 // becomes "ND:" with no trailing space. The rest of the description is
 // preserved exactly.
@@ -905,8 +1157,17 @@ function openDateUpdateDialog(event) {
   const loc = event.extendedProps.raw.location || "";
   form.querySelector(".ev-location").textContent = loc ? "Court: " + loc : "";
 
-  // Reset form state. Default the date picker to the event's own date so
-  // the user can confirm or shift it without first picking a date from scratch.
+  const desc = event.extendedProps.raw.description || "";
+  const lines = desc.split(/\r?\n/);
+  const rawCaseNo = (lines[3] || "").trim();
+  const rawLine5  = (lines[4] || "").trim();
+  const caseNoEl = form.querySelector(".ev-caseno");
+  const cnrEl    = form.querySelector(".ev-cnr");
+  const caseNo = rawCaseNo && rawCaseNo !== "<case number>" ? rawCaseNo : "";
+  caseNoEl.textContent = caseNo ? "Case No.: " + caseNo : "";
+  const cnrMatch = rawLine5.match(/^CNR:\s*([A-Z0-9]{16})\b/i);
+  cnrEl.textContent = cnrMatch ? "CNR: " + cnrMatch[1].toUpperCase() : "";
+
   form.nextDate.value = ymd(event.start);
   form.nextDate.required = true;
   form.nextDate.disabled = false;
@@ -914,20 +1175,40 @@ function openDateUpdateDialog(event) {
   form.naReason.value = "";
   form.querySelector(".na-reason").hidden = true;
   form.querySelector(".next-date-row").hidden = false;
+  form.stageTodo.checked = false;
+  form.listedFor.value = "";
+  form.querySelector(".listed-for").hidden = true;
+  form.addTask.checked = false;
+  form.taskTitle.value = "";
+  form.taskDeadline.value = "";
+  form.querySelector(".task-fields").hidden = true;
   const errBox = form.querySelector(".dialog-error");
   errBox.hidden = true;
   errBox.textContent = "";
-  form.querySelector(".btn-save").disabled = false;
+  const saveBtn = form.querySelector(".btn-save");
+  saveBtn.disabled = false;
+  saveBtn.textContent = "Update";
 
-  // Stash event reference on the form so the submit handler can reach it.
   form._currentEvent = event;
   if (!dlg.open) dlg.showModal();
+  requestAnimationFrame(() => form.nextDate.focus());
 }
 
 function wireDateUpdateDialog() {
   const dlg = document.getElementById("date-update-dialog");
   const form = dlg.querySelector("form");
   const errBox = form.querySelector(".dialog-error");
+
+  dlg.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (!t || t.tagName === "TEXTAREA") return;
+    if (t.tagName === "BUTTON" && t.type !== "submit") return;
+    if (t.tagName === "INPUT" && t.type === "checkbox") return;
+    e.preventDefault();
+    const saveBtn = form.querySelector(".btn-save");
+    if (saveBtn && !saveBtn.disabled) form.requestSubmit(saveBtn);
+  });
 
   form.noNextDate.addEventListener("change", () => {
     const off = form.noNextDate.checked;
@@ -938,6 +1219,28 @@ function wireDateUpdateDialog() {
     } else {
       form.nextDate.required = true;
       form.naReason.value = "";
+    }
+  });
+
+  form.stageTodo.addEventListener("change", () => {
+    const on = form.stageTodo.checked;
+    form.querySelector(".listed-for").hidden = !on;
+    if (!on) form.listedFor.value = "";
+  });
+
+  form.addTask.addEventListener("change", () => {
+    const on = form.addTask.checked;
+    form.querySelector(".task-fields").hidden = !on;
+    if (on) {
+      if (!form.taskTitle.value && form.listedFor.value.trim()) {
+        form.taskTitle.value = form.listedFor.value.trim();
+      }
+      if (!form.taskDeadline.value && form.nextDate.value) {
+        form.taskDeadline.value = form.nextDate.value;
+      }
+    } else {
+      form.taskTitle.value = "";
+      form.taskDeadline.value = "";
     }
   });
 
@@ -959,25 +1262,65 @@ function wireDateUpdateDialog() {
     if (!noNext) {
       const eventYmd = ymd(event.start);
       if (form.nextDate.value <= eventYmd) {
-        errBox.textContent =
-          "The next date of hearing should not be in the past.";
+        errBox.textContent = "The next date of hearing should not be in the past.";
         errBox.hidden = false;
         return;
       }
     }
 
-    form.querySelector(".btn-save").disabled = true;
+    const stageTodo = form.stageTodo.checked;
+    const listedForText = form.listedFor.value.trim();
+    if (stageTodo && !listedForText) {
+      errBox.textContent = "Type a value for 'Listed for', or uncheck Stage / Add Task / To-Do.";
+      errBox.hidden = false;
+      return;
+    }
+
+    const addTask = form.addTask.checked;
+    const taskTitle = form.taskTitle.value.trim();
+    const taskDeadline = form.taskDeadline.value;
+    if (addTask && (!taskTitle || !taskDeadline)) {
+      errBox.textContent = "Add a Task is checked — Task title and Task deadline are both required.";
+      errBox.hidden = false;
+      return;
+    }
+
+    const saveBtn = form.querySelector(".btn-save");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Updating…";
     try {
       const result = await saveDateUpdate(event, {
         noNext,
         nextDateYmd: form.nextDate.value,
         naReason: form.naReason.value.trim(),
+        listedFor: stageTodo ? listedForText : "",
       });
+
+      if (addTask) {
+        const caseTitle = (event.title && event.title !== "(no title)") ? event.title : "";
+        const longTitle = caseTitle ? `${taskTitle} in ${caseTitle}` : taskTitle;
+        const startDate = parseLocalYmd(taskDeadline);
+        const endDate = addDays(startDate, 1);
+        try {
+          await call(() =>
+            gapi.client.calendar.events.insert({
+              calendarId: event.extendedProps.calendarId,
+              resource: {
+                summary: "Task: " + longTitle,
+                start: { date: taskDeadline },
+                end: { date: ymd(endDate) },
+              },
+            })
+          );
+          showToast("Task added to calendar");
+        } catch (e) {
+          console.error("addTask failed:", e);
+          showToast("Saved date — task event failed: " + apiErrorMessage(e));
+        }
+      }
+
       if (calendar) calendar.refetchEvents();
 
-      // If the picked next date is itself in the past, offer to chain another
-      // update on the just-inserted duplicate. Loops until the user picks a
-      // future date or declines the prompt.
       if (result && result.duplicate) {
         const dupStart = new Date(
           result.duplicate.start.dateTime ||
@@ -993,9 +1336,6 @@ function wireDateUpdateDialog() {
               result.duplicate,
               result.calendarId
             );
-            // Reuse the same dialog. openDateUpdateDialog resets all fields
-            // and pre-fills the next-date picker with the synthetic event's
-            // date, so the user can pick an even-later date for the next loop.
             openDateUpdateDialog(synthetic);
             return;
           }
@@ -1003,7 +1343,7 @@ function wireDateUpdateDialog() {
       }
 
       dlg.close();
-      showToast("Saved");
+      if (!addTask) showToast("Saved");
     } catch (err) {
       console.error(err);
       if (err && err.rollbackFailed) {
@@ -1012,7 +1352,8 @@ function wireDateUpdateDialog() {
         errBox.textContent = "Save failed: " + apiErrorMessage(err);
       }
       errBox.hidden = false;
-      form.querySelector(".btn-save").disabled = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Update";
     }
   });
 }
@@ -1053,6 +1394,9 @@ async function saveDateUpdate(event, choice) {
   // 2) Insert the duplicate on the picked date with PD updated and ND empty.
   let dupDesc = setPdDate(originalDesc, eventDateDdMmYyyy);
   dupDesc = setNdLine(dupDesc, "");
+  if (choice.listedFor) {
+    dupDesc = insertListedFor(dupDesc, choice.listedFor);
+  }
   const dupBody = buildDuplicateBody(event, raw, nextDateYmd, dupDesc);
   try {
     const insertResp = await call(() =>
@@ -1130,6 +1474,14 @@ function isDateBeforeToday(d) {
   const date = new Date(d);
   date.setHours(0, 0, 0, 0);
   return date < today;
+}
+
+function isDateAfterToday(d) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  return date > today;
 }
 
 // Build a Google event body for the duplicate. Preserves title, location,
