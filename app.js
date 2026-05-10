@@ -14,6 +14,8 @@
  *   series is not modified.
  */
 
+const COURT_WATCH_BASE = 'http://localhost:8000';
+
 const SCOPES = "https://www.googleapis.com/auth/calendar openid email profile";
 const DISCOVERY = "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -258,6 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
   wireReportErrorDialog();
   wireInfoDialog();
   wireToggle();
+  wireNewCaseDialog();
 });
 
 /* ---------- Auth ---------- */
@@ -1599,4 +1602,257 @@ function linkifyDescription(text) {
     const suffix = trail ? trail[0] : "";
     return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${suffix}`;
   });
+}
+
+/* ---------- Add a New Case ---------- */
+
+function wireNewCaseDialog() {
+  const openBtn = $('new-case-btn');
+  if (!openBtn) return;
+  const dlg  = $('new-case-dialog');
+  const form = $('new-case-form');
+  const errBox = $('new-case-error');
+
+  openBtn.addEventListener('click', () => {
+    form.reset();
+    populateCalendarSelect(form.calendarId);
+    form.date.value = ymd(new Date());
+    form.prevDate.value = '';
+    form.prevNA.checked = true;
+    form.querySelector('.prev-date-row').hidden = true;
+    form.courtLocOther.hidden = true;
+    form.courtLocOther.required = false;
+    const sugg = $('court-suggestion');
+    if (sugg) { sugg.hidden = true; $('court-suggestion-text').textContent = ''; }
+    errBox.hidden = true; errBox.textContent = '';
+    form.querySelector('button[type="submit"]').disabled = false;
+    dlg.showModal();
+    requestAnimationFrame(() => form.cnr.focus());
+  });
+
+  form.querySelector('.btn-cancel').addEventListener('click', () => dlg.close());
+
+  // NA checkbox — toggle the date picker
+  form.prevNA.addEventListener('change', () => {
+    const off = form.prevNA.checked;
+    form.querySelector('.prev-date-row').hidden = off;
+    if (off) form.prevDate.value = '';
+  });
+
+  // Court location — toggle "Others" free-text input
+  form.courtLoc.addEventListener('change', () => {
+    const isOther = form.courtLoc.value === '__other__';
+    form.courtLocOther.hidden = !isOther;
+    if (isOther) form.courtLocOther.required = true;
+    else { form.courtLocOther.required = false; form.courtLocOther.value = ''; }
+  });
+
+  // CNR → auto-fill District for Delhi CNRs (chars 1-2 = DL, chars 3-4 = district code)
+  const CNR_DL_DISTRICT = {
+    CT: 'C', ET: 'E', ND: 'ND', NT: 'N', NE: 'NE',
+    NW: 'NW', SH: 'Shahdara', ST: 'S', SE: 'SE', SW: 'SW', WT: 'W',
+  };
+  form.cnr.addEventListener('input', () => {
+    const v = (form.cnr.value || '').trim().toUpperCase();
+    if (v.length < 4 || v.slice(0, 2) !== 'DL') return;
+    const dd = CNR_DL_DISTRICT[v.slice(2, 4)];
+    if (!dd) return;
+    if (form.districtInit.value && form.districtInit.value !== dd) return;
+    form.districtInit.value = dd;
+  });
+
+  // CNR Lookup button → court-watch
+  $('cnr-lookup-btn').addEventListener('click', async () => {
+    const cnr = form.cnr.value.trim().toUpperCase();
+    if (!/^[A-Za-z0-9]{16}$/.test(cnr)) {
+      errBox.textContent = 'Type the 16-character CNR before looking up.';
+      errBox.hidden = false;
+      return;
+    }
+    errBox.hidden = true; errBox.textContent = '';
+    const btn = $('cnr-lookup-btn');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Looking up…';
+    try {
+      const res = await fetch(
+        `${COURT_WATCH_BASE}/api/case-lookup?cnr=${encodeURIComponent(cnr)}`,
+        { credentials: 'omit' }
+      );
+      if (res.status === 404) { openCnrNotFoundChooser(cnr, form, errBox); return; }
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok) throw new Error((data && data.detail) || `HTTP ${res.status}`);
+      applyCnrLookupData(data, form);
+      showToast('CNR looked up — fill the Court fields from the eCourts hint, then click Add.');
+    } catch (e) {
+      const isNetwork = e instanceof TypeError;
+      errBox.textContent = isNetwork
+        ? `Could not reach court-watch at ${COURT_WATCH_BASE} — make sure it is running.`
+        : 'Lookup failed: ' + e.message + '. Fill the form manually.';
+      errBox.hidden = false;
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.hidden = true; errBox.textContent = '';
+
+    const calendarId  = form.calendarId.value;
+    const petitioner  = form.petitioner.value.trim();
+    const respondent  = form.respondent.value.trim();
+    const summary     = (petitioner && respondent) ? `${petitioner} v. ${respondent}` : '';
+    const roomNo      = form.roomNo.value.trim();
+    const courtLocSel = form.courtLoc.value;
+    const courtLoc    = courtLocSel === '__other__' ? form.courtLocOther.value.trim() : courtLocSel;
+    const judgeName   = form.judgeName.value.trim();
+    const judgeDesig  = form.judgeDesignation.value.trim();
+    const distInit    = form.districtInit.value.trim();
+    const location    = [roomNo, courtLoc, judgeName, judgeDesig].filter(Boolean).join(', ')
+                        + (distInit ? ` (${distInit})` : '');
+    const date        = form.date.value;
+    const cnr         = form.cnr.value.trim().toUpperCase();
+    const weRepr      = form.weRepresent.value.trim();
+    const caseNo      = form.caseNo.value.trim();
+    const prevNA      = form.prevNA.checked;
+    const prevDate    = form.prevDate.value;
+
+    if (!calendarId || !petitioner || !respondent || !roomNo || !courtLoc
+        || !judgeName || !judgeDesig || !date || !cnr || !weRepr) {
+      errBox.textContent = 'Calendar, Petitioner, Respondent, Room #, Court location, Judge name, Designation, Date, CNR, and We represent are all required.';
+      errBox.hidden = false; return;
+    }
+    if (!/^[A-Za-z0-9]{16}$/.test(cnr)) {
+      errBox.textContent = 'CNR must be exactly 16 alphanumeric characters.';
+      errBox.hidden = false; return;
+    }
+    if (!prevNA && !prevDate) {
+      errBox.textContent = "Pick a previous date, or check 'NA — no previous date'.";
+      errBox.hidden = false; return;
+    }
+    if (!prevNA && prevDate >= ymd(new Date())) {
+      errBox.textContent = 'Previous date should be in the past.';
+      errBox.hidden = false; return;
+    }
+
+    const pdValue     = prevNA ? 'NA' : `${ymdToDdMmYyyy(prevDate)} (not in diary)`;
+    const description = buildNewCaseDescription({ pd: pdValue, caseNo, cnr, weRepresent: weRepr });
+
+    const resource = {
+      summary, location, description,
+      start: { dateTime: `${date}T10:00:00+05:30`, timeZone: 'Asia/Kolkata' },
+      end:   { dateTime: `${date}T11:00:00+05:30`, timeZone: 'Asia/Kolkata' },
+    };
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      await gapi.client.calendar.events.insert({ calendarId, resource });
+      dlg.close();
+      showToast('Case added');
+      if (calendar) calendar.refetchEvents();
+    } catch (err) {
+      errBox.textContent = 'Failed to add case: ' + apiErrorMessage(err);
+      errBox.hidden = false;
+      submitBtn.disabled = false;
+    }
+  });
+}
+
+function populateCalendarSelect(selectEl) {
+  selectEl.innerHTML = '';
+  const writable = (calendarsList || []).filter(
+    (c) => c.accessRole === 'owner' || c.accessRole === 'writer'
+  );
+  if (!writable.length) {
+    const opt = document.createElement('option');
+    opt.textContent = '(no writable calendars)';
+    opt.disabled = true;
+    selectEl.appendChild(opt);
+    return;
+  }
+  const preferred = writable.find((c) => c.summary === 'Court Diary') || writable[0];
+  for (const cal of writable) {
+    const opt = document.createElement('option');
+    opt.value = cal.id;
+    opt.textContent = cal.summary || cal.id;
+    if (cal.id === preferred.id) opt.setAttribute('selected', '');
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = preferred.id;
+}
+
+function applyCnrLookupData(data, form) {
+  let petName = data.petitioner || '';
+  let resName = data.respondent || '';
+  if ((!petName || !resName) && data.title) {
+    const m = data.title.match(/^(.+?)\s+v\.?s?\.?\s+(.+)$/i);
+    if (m) { petName = petName || m[1].trim(); resName = resName || m[2].trim(); }
+  }
+  if (petName && !form.petitioner.value) form.petitioner.value = petName;
+  if (resName && !form.respondent.value) form.respondent.value = resName;
+  const caseNo = [data.case_type, data.registration_number].filter(Boolean).join('/');
+  if (caseNo && !form.caseNo.value) form.caseNo.value = caseNo;
+  const sugg = $('court-suggestion');
+  const suggText = $('court-suggestion-text');
+  if (data.court) { suggText.textContent = data.court; sugg.hidden = false; }
+  else { sugg.hidden = true; suggText.textContent = ''; }
+}
+
+function openCnrNotFoundChooser(cnr, form, errBox) {
+  const dlg = $('cnr-not-found-dialog');
+  $('cnr-nf-cnr').textContent = cnr;
+
+  function replace(btn) {
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    return fresh;
+  }
+  const q = replace($('cnr-nf-queue'));
+  const m = replace($('cnr-nf-manual'));
+
+  q.addEventListener('click', async () => {
+    dlg.close();
+    try {
+      const fd = new FormData();
+      fd.set('cnrs', cnr);
+      await fetch(`${COURT_WATCH_BASE}/queue/bulk`, {
+        method: 'POST', body: fd, credentials: 'omit',
+      });
+    } catch (e) { console.error('queue add failed:', e); }
+    window.open(`${COURT_WATCH_BASE}/queue`, '_blank', 'noopener');
+    showToast('Added to Court-Watch queue. Solve the captcha there, then click Lookup again.');
+  });
+
+  m.addEventListener('click', () => {
+    dlg.close();
+    showToast('Fill the form by hand — Lookup is skipped.');
+  });
+
+  if (!dlg.open) dlg.showModal();
+}
+
+function buildNewCaseDescription({ pd, caseNo, cnr, weRepresent }) {
+  return [
+    `PD: ${pd}`,
+    'ND:',
+    '',
+    caseNo || '<case number>',
+    `CNR: ${cnr}`,
+    '',
+    `We represent: ${weRepresent}`,
+    '',
+    'VC Link:',
+    '',
+    '',
+    'Meeting ID: ',
+    '',
+    'Court Reader:',
+    '',
+    '',
+    '',
+    'Court email:',
+    '',
+  ].join('\n');
 }

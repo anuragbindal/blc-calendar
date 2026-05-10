@@ -23,6 +23,7 @@
       <div class="toolbar">
         <button id="btn-today" type="button">Today</button>
         <button id="btn-refresh" type="button" title="Reload events from Google Calendar">Refresh</button>
+        <button id="new-case-btn" type="button" title="Add a new case to a calendar">+ Add Case</button>
         <button id="btn-prev" type="button" aria-label="Previous">&lsaquo;</button>
         <button id="btn-next" type="button" aria-label="Next">&rsaquo;</button>
         <span id="cal-title" class="cal-title"></span>
@@ -156,6 +157,121 @@
     <p class="info-message"></p>
     <div class="dialog-actions">
       <button type="button" class="btn-close">OK</button>
+    </div>
+  </dialog>
+
+  <!-- Add-case dialog -->
+  <dialog id="new-case-dialog">
+    <form id="new-case-form" autocomplete="off">
+      <h2 style="margin:0 0 0.75rem">Add a New Case</h2>
+      <div style="display:grid; grid-template-columns:1fr; gap:0.65rem;">
+        <label>Calendar
+          <select name="calendarId" required></select>
+        </label>
+        <label>CNR
+          <span style="display:flex; gap:0.4rem;">
+            <input type="text" name="cnr" required pattern="[A-Za-z0-9]{16}" maxlength="16"
+                   placeholder="16 alphanumeric chars" style="flex:1">
+            <button type="button" id="cnr-lookup-btn">Lookup</button>
+          </span>
+        </label>
+        <label>Case Name
+          <span style="display:flex; gap:0.4rem; align-items:center;">
+            <input type="text" name="petitioner" required placeholder="Petitioner" autocomplete="off" style="flex:1; min-width:0">
+            <span class="muted" style="flex-shrink:0">v.</span>
+            <input type="text" name="respondent" required placeholder="Respondent" autocomplete="off" style="flex:1; min-width:0">
+          </span>
+        </label>
+        <label class="nc-top-aligned">Court
+          <span style="display:flex; flex-direction:column; gap:0.4rem">
+            <span style="display:grid; grid-template-columns:6rem 1fr; gap:0.4rem">
+              <input type="text" name="roomNo" required placeholder="Room #" autocomplete="off">
+              <select name="courtLoc" required>
+                <option value="">Court location…</option>
+                <option value="DHC">Delhi High Court (DHC)</option>
+                <option value="SCI">Supreme Court of India (SCI)</option>
+                <option value="NCDRC">National Consumer Dispute Resolution Commission (NCDRC)</option>
+                <option value="SCDRC">State Consumer Dispute Resolution Commission (SCDRC)</option>
+                <option value="THC">Tis Hazari Court (THC)</option>
+                <option value="PHC">Patiala House Court (PHC)</option>
+                <option value="RAC">Rouse Avenue Court (RAC)</option>
+                <option value="Saket">Saket Court (Saket)</option>
+                <option value="KKD">Karkardooma Court (KKD)</option>
+                <option value="Rohini">Rohini Court (Rohini)</option>
+                <option value="DWK">Dwarka Court (DWK)</option>
+                <option value="FDK">Faridkot Court (FDK)</option>
+                <option value="__other__">Others…</option>
+              </select>
+            </span>
+            <input type="text" name="courtLocOther" placeholder="Specify court location" autocomplete="off" hidden>
+            <span style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem">
+              <input type="text" name="judgeName" required placeholder="Judge name" autocomplete="off">
+              <input type="text" name="judgeDesignation" required placeholder="Designation (ADJ-04, J., MM …)" autocomplete="off">
+            </span>
+            <select name="districtInit">
+              <option value="">District (optional)</option>
+              <option value="C">Central (C)</option>
+              <option value="N">North (N)</option>
+              <option value="NW">North-West (NW)</option>
+              <option value="NE">North-East (NE)</option>
+              <option value="E">East (E)</option>
+              <option value="W">West (W)</option>
+              <option value="S">South (S)</option>
+              <option value="SE">South-East (SE)</option>
+              <option value="SW">South-West (SW)</option>
+              <option value="ND">New Delhi (ND)</option>
+              <option value="Shahdara">Shahdara (Shahdara)</option>
+            </select>
+            <span id="court-suggestion" hidden style="font-size:0.78rem; color:#6b7280; padding:0.15rem 0; line-height:1.4">
+              From eCourts: <code id="court-suggestion-text" style="background:#f3f4f6; padding:0 0.3rem; border-radius:3px"></code>
+            </span>
+          </span>
+        </label>
+        <label>Date
+          <input type="date" name="date" required>
+        </label>
+        <label class="nc-prev-date-label">Previous Date
+          <span style="display:flex; flex-direction:column; gap:0.4rem;">
+            <span style="display:flex; align-items:center; gap:0.4rem;">
+              <input type="checkbox" name="prevNA" checked>
+              <span>NA — no previous date</span>
+            </span>
+            <input type="date" name="prevDate" class="prev-date-row" hidden>
+          </span>
+        </label>
+        <label>
+          <span style="display:flex; align-items:baseline; gap:0.4rem;">
+            Case No. <span class="muted" style="font-size:0.75rem">(optional)</span>
+          </span>
+          <input type="text" name="caseNo" placeholder="e.g., WT/Civ/123/2025">
+        </label>
+        <label>We represent
+          <input type="text" name="weRepresent" required placeholder="Petitioner / Defendant / etc.">
+        </label>
+      </div>
+      <div class="nc-error" id="new-case-error" hidden></div>
+      <div class="nc-actions">
+        <button type="button" class="btn-cancel">Cancel</button>
+        <button type="submit" class="btn-primary">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- CNR not found chooser -->
+  <dialog id="cnr-not-found-dialog">
+    <h2 style="margin:0 0 0.4rem; font-size:1.05rem">Case not in Court-Watch yet</h2>
+    <p class="muted" style="margin:0 0 0.85rem; line-height:1.45">
+      CNR <code id="cnr-nf-cnr"></code> isn't in Court-Watch's database. Pick how to fill the form:
+    </p>
+    <div style="display:flex; flex-direction:column; gap:0.55rem">
+      <button type="button" id="cnr-nf-queue" class="nc-option-btn">
+        <strong style="display:block">Add to Court-Watch queue</strong>
+        <span class="muted" style="font-size:0.78rem">Queues the CNR and opens the Queue tab to solve the captcha. Come back and click Lookup again when done.</span>
+      </button>
+      <button type="button" id="cnr-nf-manual" class="nc-option-btn">
+        <strong style="display:block">Fill the form manually</strong>
+        <span class="muted" style="font-size:0.78rem">Skip the lookup and type the case details by hand.</span>
+      </button>
     </div>
   </dialog>
 
