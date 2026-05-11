@@ -1091,16 +1091,12 @@ function parseCourtFormat(description) {
 // Splice ["", "For: <text>"] right after the CNR line (line 5). Existing
 // descriptions always have a blank line after CNR, so we don't add a
 // trailing blank — the original one separates "For:" from what follows.
-// If description already has a "For:" line, replace it in-place using a
-// multiline regex (no line-splitting needed, handles \r\n cleanly).
-// Otherwise splice ["", "For: <text>"] after line 5.
+// Strip all existing "For:" lines, then splice ["", "For: <text>"] after
+// line 5. Using filter handles both the normal case (one existing For:)
+// and legacy events that accumulated multiple For: lines from past bugs.
 function insertListedFor(description, text) {
   if (!text) return description;
-  const desc = String(description || "");
-  if (/^For:/m.test(desc)) {
-    return desc.replace(/^For:.*$/m, `For: ${text}`);
-  }
-  const lines = desc.split(/\r?\n/);
+  const lines = String(description || "").split(/\r?\n/).filter(l => !/^For:/.test(l));
   while (lines.length < 5) lines.push("");
   const before = lines.slice(0, 5);
   const after = lines.slice(5);
