@@ -27,6 +27,7 @@ let currentToken = null;
 let calendar = null;
 let calendarsList = [];
 const visibleCalendarIds = new Set();
+let caseCountMode = 'all';
 
 const LS_DATE_UPDATE_MODE = "bcm.dateUpdateMode";
 const LS_SIGNED_IN = "bcm.signedInBefore";
@@ -360,6 +361,8 @@ async function onSignedIn() {
   document.getElementById("app").hidden = false;
   await Promise.all([loadUser(), loadCalendars()]);
   initCalendar();
+  initCaseCountButtons();
+  refreshCaseCount();
 }
 
 async function loadUser() {
@@ -423,6 +426,7 @@ function renderCalendarToggles() {
       else visibleCalendarIds.delete(cal.id);
       writeVisibleCalendars([...visibleCalendarIds]);
       if (calendar) calendar.refetchEvents();
+      refreshCaseCount();
     });
     const dot = document.createElement("span");
     dot.className = "dot";
@@ -727,6 +731,7 @@ async function refreshCalendar() {
     // calendar elsewhere. User toggles persist through readVisibleCalendars().
     await loadCalendars();
     calendar.refetchEvents();
+    refreshCaseCount();
     showToast("Refreshed");
   } catch (err) {
     console.error(err);
@@ -735,6 +740,72 @@ async function refreshCalendar() {
     btn.disabled = false;
     btn.textContent = original;
   }
+}
+
+async function fetchAllCaseEvents() {
+  const ids = [...visibleCalendarIds];
+  if (ids.length === 0) return [];
+  const allItems = [];
+  await Promise.all(ids.map(async (calId) => {
+    let pageToken;
+    do {
+      const params = {
+        calendarId: calId,
+        timeMin: '2019-01-01T00:00:00Z',
+        singleEvents: true,
+        showDeleted: false,
+        maxResults: 2500,
+      };
+      if (pageToken) params.pageToken = pageToken;
+      const r = await call(() => gapi.client.calendar.events.list(params));
+      (r.result.items || []).forEach(ev => {
+        if (ev.status !== 'cancelled' && ev.summary) allItems.push(ev);
+      });
+      pageToken = r.result.nextPageToken;
+    } while (pageToken);
+  }));
+  return allItems;
+}
+
+async function refreshCaseCount() {
+  const numEl = document.getElementById('case-count-number');
+  if (!numEl) return;
+  numEl.textContent = '…';
+  try {
+    const events = await fetchAllCaseEvents();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (caseCountMode === 'all') {
+      numEl.textContent = new Set(events.map(ev => ev.summary)).size;
+    } else {
+      const active = new Set();
+      events.forEach(ev => {
+        const start = ev.start?.dateTime || ev.start?.date;
+        if (start && new Date(start) >= today) active.add(ev.summary);
+      });
+      numEl.textContent = active.size;
+    }
+  } catch (err) {
+    numEl.textContent = '?';
+    console.error('Case count failed', err);
+  }
+}
+
+function initCaseCountButtons() {
+  const btnAll = document.getElementById('count-btn-all');
+  const btnActive = document.getElementById('count-btn-active');
+  btnAll.addEventListener('click', () => {
+    caseCountMode = 'all';
+    btnAll.classList.add('count-btn-on');
+    btnActive.classList.remove('count-btn-on');
+    refreshCaseCount();
+  });
+  btnActive.addEventListener('click', () => {
+    caseCountMode = 'active';
+    btnActive.classList.add('count-btn-on');
+    btnAll.classList.remove('count-btn-on');
+    refreshCaseCount();
+  });
 }
 
 function updateTitle() {
