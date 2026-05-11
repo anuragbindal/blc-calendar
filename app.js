@@ -1094,11 +1094,12 @@ function parseCourtFormat(description) {
 function insertListedFor(description, text) {
   if (!text) return description;
   const lines = String(description || "").split(/\r?\n/);
-  // Remove any existing "For:" line and the blank line immediately before it.
+  // Strip ALL existing "For:" lines, then remove the blank that immediately
+  // preceded each one (the blank we insert ourselves as part of the pair).
   const cleaned = [];
   for (let i = 0; i < lines.length; i++) {
-    if (/^For:\s/.test(lines[i])) {
-      if (cleaned.length && cleaned[cleaned.length - 1] === "") cleaned.pop();
+    if (/^For:/.test(lines[i])) {
+      if (cleaned.length && cleaned[cleaned.length - 1].trim() === "") cleaned.pop();
       continue;
     }
     cleaned.push(lines[i]);
