@@ -1091,22 +1091,19 @@ function parseCourtFormat(description) {
 // Splice ["", "For: <text>"] right after the CNR line (line 5). Existing
 // descriptions always have a blank line after CNR, so we don't add a
 // trailing blank — the original one separates "For:" from what follows.
+// If description already has a "For:" line, replace it in-place (same logic
+// as setPdDate for PD). Otherwise splice ["", "For: <text>"] after line 5.
 function insertListedFor(description, text) {
   if (!text) return description;
   const lines = String(description || "").split(/\r?\n/);
-  // Strip ALL existing "For:" lines, then remove the blank that immediately
-  // preceded each one (the blank we insert ourselves as part of the pair).
-  const cleaned = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (/^For:/.test(lines[i])) {
-      if (cleaned.length && cleaned[cleaned.length - 1].trim() === "") cleaned.pop();
-      continue;
-    }
-    cleaned.push(lines[i]);
+  const idx = lines.findIndex(l => /^For:/.test(l));
+  if (idx !== -1) {
+    lines[idx] = `For: ${text}`;
+    return lines.join("\n");
   }
-  while (cleaned.length < 5) cleaned.push("");
-  const before = cleaned.slice(0, 5);
-  const after = cleaned.slice(5);
+  while (lines.length < 5) lines.push("");
+  const before = lines.slice(0, 5);
+  const after = lines.slice(5);
   return [...before, "", `For: ${text}`, ...after].join("\n");
 }
 
