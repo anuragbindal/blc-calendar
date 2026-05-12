@@ -14,7 +14,7 @@
  *   series is not modified.
  */
 
-const COURT_WATCH_BASE = 'http://localhost:8000';
+const CASE_WATCH_BASE = 'http://localhost:8005';
 
 const SCOPES = "https://www.googleapis.com/auth/calendar openid email profile";
 const DISCOVERY = "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest";
@@ -1735,7 +1735,7 @@ function wireNewCaseDialog() {
     form.districtInit.value = dd;
   });
 
-  // CNR Lookup button → court-watch
+  // CNR Lookup button → case-watch
   $('cnr-lookup-btn').addEventListener('click', async () => {
     const cnr = form.cnr.value.trim().toUpperCase();
     if (!/^[A-Za-z0-9]{16}$/.test(cnr)) {
@@ -1749,7 +1749,7 @@ function wireNewCaseDialog() {
     btn.disabled = true; btn.textContent = 'Looking up…';
     try {
       const res = await fetch(
-        `${COURT_WATCH_BASE}/api/case-lookup?cnr=${encodeURIComponent(cnr)}`,
+        `${CASE_WATCH_BASE}/api/case-lookup?cnr=${encodeURIComponent(cnr)}`,
         { credentials: 'omit' }
       );
       if (res.status === 404) { openCnrNotFoundChooser(cnr, form, errBox); return; }
@@ -1761,7 +1761,7 @@ function wireNewCaseDialog() {
     } catch (e) {
       const isNetwork = e instanceof TypeError;
       errBox.textContent = isNetwork
-        ? `Could not reach court-watch at ${COURT_WATCH_BASE} — make sure it is running.`
+        ? `Could not reach case-watch at ${CASE_WATCH_BASE} — make sure it is running.`
         : 'Lookup failed: ' + e.message + '. Fill the form manually.';
       errBox.hidden = false;
     } finally {
@@ -1886,17 +1886,10 @@ function openCnrNotFoundChooser(cnr, form, errBox) {
   const q = replace($('cnr-nf-queue'));
   const m = replace($('cnr-nf-manual'));
 
-  q.addEventListener('click', async () => {
+  q.addEventListener('click', () => {
     dlg.close();
-    try {
-      const fd = new FormData();
-      fd.set('cnrs', cnr);
-      await fetch(`${COURT_WATCH_BASE}/queue/bulk`, {
-        method: 'POST', body: fd, credentials: 'omit',
-      });
-    } catch (e) { console.error('queue add failed:', e); }
-    window.open(`${COURT_WATCH_BASE}/queue`, '_blank', 'noopener');
-    showToast('Added to Court-Watch queue. Solve the captcha there, then click Lookup again.');
+    window.open(`${CASE_WATCH_BASE}/`, '_blank', 'noopener');
+    showToast('Opened case-watch — add the CNR there, then click Lookup again.');
   });
 
   m.addEventListener('click', () => {
