@@ -694,28 +694,14 @@ dialog textarea { resize: vertical; }
 }
 .nc-option-btn:hover { background: #f9fafb; }
 
-/* Case count widget */
-.case-count-section { border-bottom: none; margin-bottom: 0; }
-.case-count-num {
-  font-size: 2.2rem;
-  font-weight: 700;
-  color: #111827;
-  text-align: center;
-  line-height: 1;
-  margin: 0.4rem 0 0.65rem;
+/* Case count rows — match cal-toggle feel */
+.case-count-rows { display: flex; flex-direction: column; gap: 0; }
+.case-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  font-size: 0.875rem;
 }
-.case-count-btns { display: flex; gap: 0.3rem; }
-.count-btn {
-  flex: 1;
-  padding: 0.28rem 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: #6b7280;
-  cursor: pointer;
-  font-family: inherit;
-}
-.count-btn:hover { background: #f9fafb; }
-.count-btn.count-btn-on { background: #4f46e5; color: white; border-color: #4f46e5; }
+.case-count-label { color: #374151; }
+.case-count-val { font-weight: 600; color: #111827; min-width: 2ch; text-align: right; }

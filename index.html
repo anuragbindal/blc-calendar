@@ -66,14 +66,19 @@
           <summary>Calendars</summary>
           <div id="calendar-toggles"></div>
         </details>
-        <div class="sidebar-section case-count-section">
-          <h3>Cases</h3>
-          <div class="case-count-num" id="case-count-number">—</div>
-          <div class="case-count-btns">
-            <button type="button" id="count-btn-all" class="count-btn count-btn-on">All</button>
-            <button type="button" id="count-btn-active" class="count-btn">Active</button>
+        <details class="sidebar-collapsible" id="case-count-details">
+          <summary>Cases</summary>
+          <div class="case-count-rows">
+            <div class="case-count-row">
+              <span class="case-count-label">All cases</span>
+              <span class="case-count-val" id="case-count-all">—</span>
+            </div>
+            <div class="case-count-row">
+              <span class="case-count-label">Active</span>
+              <span class="case-count-val" id="case-count-active">—</span>
+            </div>
           </div>
-        </div>
+        </details>
       </aside>
       <section id="calendar"></section>
     </main>

@@ -27,7 +27,6 @@ let currentToken = null;
 let calendar = null;
 let calendarsList = [];
 const visibleCalendarIds = new Set();
-let caseCountMode = 'all';
 
 const LS_DATE_UPDATE_MODE = "bcm.dateUpdateMode";
 const LS_SIGNED_IN = "bcm.signedInBefore";
@@ -751,7 +750,8 @@ async function fetchAllCaseEvents() {
     do {
       const params = {
         calendarId: calId,
-        timeMin: '2019-01-01T00:00:00Z',
+        timeMin: '2015-01-01T00:00:00Z',
+        timeMax: '2035-01-01T00:00:00Z',
         singleEvents: true,
         showDeleted: false,
         maxResults: 2500,
@@ -768,44 +768,35 @@ async function fetchAllCaseEvents() {
 }
 
 async function refreshCaseCount() {
-  const numEl = document.getElementById('case-count-number');
-  if (!numEl) return;
-  numEl.textContent = '…';
+  const allEl = document.getElementById('case-count-all');
+  const activeEl = document.getElementById('case-count-active');
+  if (!allEl || !activeEl) return;
+  allEl.textContent = '…';
+  activeEl.textContent = '…';
   try {
     const events = await fetchAllCaseEvents();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (caseCountMode === 'all') {
-      numEl.textContent = new Set(events.map(ev => ev.summary)).size;
-    } else {
-      const active = new Set();
-      events.forEach(ev => {
-        const start = ev.start?.dateTime || ev.start?.date;
-        if (start && new Date(start) >= today) active.add(ev.summary);
-      });
-      numEl.textContent = active.size;
-    }
+    const allTitles = new Set();
+    const activeTitles = new Set();
+    events.forEach(ev => {
+      allTitles.add(ev.summary);
+      const start = ev.start?.dateTime || ev.start?.date;
+      if (start && new Date(start) >= today) activeTitles.add(ev.summary);
+    });
+    allEl.textContent = allTitles.size;
+    activeEl.textContent = activeTitles.size;
   } catch (err) {
-    numEl.textContent = '?';
+    allEl.textContent = '?';
+    activeEl.textContent = '?';
     console.error('Case count failed', err);
   }
 }
 
 function initCaseCountButtons() {
-  const btnAll = document.getElementById('count-btn-all');
-  const btnActive = document.getElementById('count-btn-active');
-  btnAll.addEventListener('click', () => {
-    caseCountMode = 'all';
-    btnAll.classList.add('count-btn-on');
-    btnActive.classList.remove('count-btn-on');
-    refreshCaseCount();
-  });
-  btnActive.addEventListener('click', () => {
-    caseCountMode = 'active';
-    btnActive.classList.add('count-btn-on');
-    btnAll.classList.remove('count-btn-on');
-    refreshCaseCount();
-  });
+  // expand the details panel so counts are visible on load
+  const details = document.getElementById('case-count-details');
+  if (details) details.open = true;
 }
 
 function updateTitle() {
