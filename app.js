@@ -745,7 +745,7 @@ async function fetchAllCaseEvents() {
   const ids = [...visibleCalendarIds];
   if (ids.length === 0) return [];
   const allItems = [];
-  await Promise.all(ids.map(async (calId) => {
+  const results = await Promise.allSettled(ids.map(async (calId) => {
     let pageToken;
     do {
       const params = {
@@ -764,6 +764,7 @@ async function fetchAllCaseEvents() {
       pageToken = r.result.nextPageToken;
     } while (pageToken);
   }));
+  results.forEach(r => { if (r.status === 'rejected') console.warn('Case count fetch failed for one calendar:', r.reason); });
   return allItems;
 }
 
