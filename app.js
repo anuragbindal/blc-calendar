@@ -1868,6 +1868,8 @@ function applyCnrLookupData(data, form) {
   if (resName && !form.respondent.value) form.respondent.value = resName;
   const caseNo = [data.case_type, data.registration_number].filter(Boolean).join('/');
   if (caseNo && !form.caseNo.value) form.caseNo.value = caseNo;
+  if (data.judge_name && !form.judgeName.value) form.judgeName.value = data.judge_name;
+  if (data.judge_designation && !form.judgeDesignation.value) form.judgeDesignation.value = data.judge_designation;
   const sugg = $('court-suggestion');
   const suggText = $('court-suggestion-text');
   if (data.court) { suggText.textContent = data.court; sugg.hidden = false; }
