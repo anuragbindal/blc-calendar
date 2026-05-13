@@ -270,25 +270,7 @@
     </form>
   </dialog>
 
-  <!-- CNR not found chooser -->
-  <dialog id="cnr-not-found-dialog">
-    <h2 style="margin:0 0 0.4rem; font-size:1.05rem">Case not found in case-watch</h2>
-    <p class="muted" style="margin:0 0 0.85rem; line-height:1.45">
-      CNR <code id="cnr-nf-cnr"></code> wasn't found. Pick how to fill the form:
-    </p>
-    <div style="display:flex; flex-direction:column; gap:0.55rem">
-      <button type="button" id="cnr-nf-queue" class="nc-option-btn">
-        <strong style="display:block">Open Case-Watch</strong>
-        <span class="muted" style="font-size:0.78rem">Opens Case-Watch in a new tab. Add the CNR there, then come back and click Lookup again.</span>
-      </button>
-      <button type="button" id="cnr-nf-manual" class="nc-option-btn">
-        <strong style="display:block">Let me add the case details manually</strong>
-        <span class="muted" style="font-size:0.78rem">Skip the lookup and type the case details by hand.</span>
-      </button>
-    </div>
-  </dialog>
-
-  <div id="toast" class="toast" hidden></div>
+<div id="toast" class="toast" hidden></div>
 
   <script src="config.js"></script>
   <script src="app.js"></script>

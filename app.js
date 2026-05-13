@@ -1752,7 +1752,11 @@ function wireNewCaseDialog() {
         `${CASE_WATCH_BASE}/api/case-lookup?cnr=${encodeURIComponent(cnr)}`,
         { credentials: 'omit' }
       );
-      if (res.status === 404) { openCnrNotFoundChooser(cnr, form, errBox); return; }
+      if (res.status === 404) {
+        errBox.textContent = 'Case not found in eCourts — fill the form manually.';
+        errBox.hidden = false;
+        return;
+      }
       let data = null;
       try { data = await res.json(); } catch {}
       if (!res.ok) throw new Error((data && data.detail) || `HTTP ${res.status}`);
@@ -1876,31 +1880,6 @@ function applyCnrLookupData(data, form) {
   else { sugg.hidden = true; suggText.textContent = ''; }
 }
 
-function openCnrNotFoundChooser(cnr, form, errBox) {
-  const dlg = $('cnr-not-found-dialog');
-  $('cnr-nf-cnr').textContent = cnr;
-
-  function replace(btn) {
-    const fresh = btn.cloneNode(true);
-    btn.parentNode.replaceChild(fresh, btn);
-    return fresh;
-  }
-  const q = replace($('cnr-nf-queue'));
-  const m = replace($('cnr-nf-manual'));
-
-  q.addEventListener('click', () => {
-    dlg.close();
-    window.open(`${CASE_WATCH_BASE}/`, '_blank', 'noopener');
-    showToast('Opened case-watch — add the CNR there, then click Lookup again.');
-  });
-
-  m.addEventListener('click', () => {
-    dlg.close();
-    showToast('Fill the form by hand — Lookup is skipped.');
-  });
-
-  if (!dlg.open) dlg.showModal();
-}
 
 function buildNewCaseDescription({ pd, caseNo, cnr, weRepresent }) {
   return [
