@@ -8,11 +8,7 @@
         { "key": "X-Content-Type-Options",  "value": "nosniff" },
         { "key": "Referrer-Policy",           "value": "strict-origin-when-cross-origin" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "Permissions-Policy",        "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://apis.google.com https://accounts.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.googleapis.com https://apis.google.com https://accounts.google.com https://oauth2.googleapis.com https://www.gstatic.com; frame-src https://accounts.google.com https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'self'"
-        }
+        { "key": "Permissions-Policy",        "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()" }
       ]
     }
   ]
