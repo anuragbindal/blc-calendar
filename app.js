@@ -1905,18 +1905,3 @@ function buildNewCaseDescription({ pd, caseNo, cnr, weRepresent }) {
   ].join('\n');
 }
 
-/* ---------- Bootstrap Google scripts ---------- */
-// Load GAPI and GIS dynamically so no inline onload="" attributes are
-// needed in the HTML — keeping the Content-Security-Policy clean.
-(function () {
-  function loadScript(src, cb) {
-    const s = document.createElement('script');
-    s.src = src;
-    s.async = true;
-    s.defer = true;
-    s.addEventListener('load', cb);
-    document.body.appendChild(s);
-  }
-  loadScript('https://apis.google.com/js/api.js', gapiLoaded);
-  loadScript('https://accounts.google.com/gsi/client', gisLoaded);
-}());
