@@ -1,4 +1,6 @@
 {
+  "buildCommand": "echo build",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/(.*)",
